@@ -43,7 +43,9 @@ bool LoadPcxPixelsAndPalette(HANDLE handle, int width, int height, std::uint8_t 
 	if (!SFileReadFileThreadSafe(handle, fileBuffer.get(), readSize)) {
 		return false;
 	}
-	const unsigned xSkip = bufferPitch - width;
+	unsigned xSkip = bufferPitch - width;
+	if (xSkip % 2)
+		xSkip--;
 	BYTE *dataPtr = fileBuffer.get();
 	for (int j = 0; j < height; j++) {
 		for (int x = 0; x < width;) {
@@ -127,6 +129,8 @@ void LoadArt(const char *pszFile, Art *art, int frames, SDL_Color *pPalette)
 		return;
 	}
 	SFileCloseFileThreadSafe(handle);
+
+	SDL_SetSurfaceRLE(&*artSurface, 1);
 
 	art->logical_width = artSurface->w;
 	art->frame_height = height / frames;
