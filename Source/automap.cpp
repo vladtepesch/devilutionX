@@ -95,6 +95,103 @@ void DrawMapHorizontalDoor(const Surface &out, Point center)
 	DrawDiamond(out, center, MapColorsBright);
 }
 
+void DrawDirt(const Surface &out, Point &center)
+{
+	out.SetPixel(center, MapColorsDim);
+	out.SetPixel({ center.x - AmLine8, center.y - AmLine4 }, MapColorsDim);
+	out.SetPixel({ center.x - AmLine8, center.y + AmLine4 }, MapColorsDim);
+	out.SetPixel({ center.x + AmLine8, center.y - AmLine4 }, MapColorsDim);
+	out.SetPixel({ center.x + AmLine8, center.y + AmLine4 }, MapColorsDim);
+	out.SetPixel({ center.x - AmLine16, center.y }, MapColorsDim);
+	out.SetPixel({ center.x + AmLine16, center.y }, MapColorsDim);
+	out.SetPixel({ center.x, center.y - AmLine8 }, MapColorsDim);
+	out.SetPixel({ center.x, center.y + AmLine8 }, MapColorsDim);
+	out.SetPixel({ center.x + AmLine8 - AmLine32, center.y + AmLine4 }, MapColorsDim);
+	out.SetPixel({ center.x - AmLine8 + AmLine32, center.y + AmLine4 }, MapColorsDim);
+	out.SetPixel({ center.x - AmLine16, center.y + AmLine8 }, MapColorsDim);
+	out.SetPixel({ center.x + AmLine16, center.y + AmLine8 }, MapColorsDim);
+	out.SetPixel({ center.x - AmLine8, center.y + AmLine16 - AmLine4 }, MapColorsDim);
+	out.SetPixel({ center.x + AmLine8, center.y + AmLine16 - AmLine4 }, MapColorsDim);
+	out.SetPixel({ center.x, center.y + AmLine16 }, MapColorsDim);
+}
+
+void DrawStairs(const Surface &out, const Point &center)
+{
+	constexpr int NumStairSteps = 4;
+	const Displacement offset = { -AmLine8, AmLine4 };
+	Point p = { center.x - AmLine8, center.y - AmLine8 - AmLine4 };
+	for (int i = 0; i < NumStairSteps; ++i) {
+		DrawMapLineSE(out, p, AmLine16, MapColorsBright);
+		p += offset;
+	}
+}
+
+/**
+ * For caves the horizontal/vertical automapType are swapped
+ */
+void DrawCaveVertical(const Surface &out, const Point &center, const AutomapTypes &automapType)
+{
+	if ((automapType & AutomapTypeHorizontalDoor) != 0) {
+		DrawMapVerticalDoor(out, { center.x + AmLine16, center.y + AmLine8 });
+	} else {
+		DrawMapLineNE(out, { center.x, center.y + AmLine16 }, AmLine16, MapColorsDim);
+	}
+}
+
+/**
+ * For caves the horizontal/vertical automapType are swapped
+ */
+void DrawCaveHorizontal(const Surface &out, const Point &center, const AutomapTypes &automapType)
+{
+	if ((automapType & AutomapTypeVerticalDoor) != 0) {
+		DrawMapHorizontalDoor(out, { center.x - AmLine16, center.y + AmLine8 });
+	} else {
+		DrawMapLineSE(out, { center.x - AmLine32, center.y }, AmLine16, MapColorsDim);
+	}
+}
+
+/**
+ * Left-facing obstacle
+ */
+void DrawHorizontal(const Surface &out, const Point &center, AutomapTypes &automapType)
+{
+	if ((automapType & (AutomapTypeHorizontalDoor | AutomapTypeHorizontalGrate | AutomapTypeHorizontalArch)) == 0) {
+		DrawMapLineSE(out, { center.x, center.y - AmLine16 }, AmLine16, MapColorsDim);
+		return;
+	}
+	if ((automapType & AutomapTypeHorizontalDoor) != 0) {
+		DrawMapHorizontalDoor(out, { center.x + AmLine16, center.y - AmLine8 });
+	}
+	if ((automapType & AutomapTypeHorizontalGrate) != 0) {
+		DrawMapLineSE(out, { center.x + AmLine16, center.y - AmLine8 }, AmLine8, MapColorsDim);
+		automapType = static_cast<AutomapTypes>(automapType | AutomapTypeHorizontalArch);
+	}
+	if ((automapType & AutomapTypeHorizontalArch) != 0) {
+		DrawDiamond(out, { center.x, center.y - AmLine8 }, MapColorsDim);
+	}
+}
+
+/**
+ * Right-facing obstacle
+ */
+void DrawVertical(const Surface &out, const Point &center, AutomapTypes &automapType)
+{
+	if ((automapType & (AutomapTypeVerticalDoor | AutomapTypeVerticalGrate | AutomapTypeVerticalArch)) == 0) {
+		DrawMapLineNE(out, { center.x - AmLine32, center.y }, AmLine16, MapColorsDim);
+		return;
+	}
+	if ((automapType & AutomapTypeVerticalDoor) != 0) { // two wall segments with a door in the middle
+		DrawMapVerticalDoor(out, { center.x - AmLine16, center.y - AmLine8 });
+	}
+	if ((automapType & AutomapTypeVerticalGrate) != 0) { // right-facing half-wall
+		DrawMapLineNE(out, { center.x - AmLine32, center.y }, AmLine8, MapColorsDim);
+		automapType = static_cast<AutomapTypes>(automapType | AutomapTypeVerticalArch);
+	}
+	if ((automapType & AutomapTypeVerticalArch) != 0) { // window or passable column
+		DrawDiamond(out, { center.x, center.y - AmLine8 }, MapColorsDim);
+	}
+}
+
 /**
  * @brief Renders the given automap shape at the specified screen coordinates.
  */
@@ -103,122 +200,49 @@ void DrawAutomapTile(const Surface &out, Point center, AutomapTypes automapType)
 	if (automapType == AutomapTypeNone)
 		return;
 
-	if ((automapType & AutomapTypeDirt) != 0) {
-		out.SetPixel(center, MapColorsDim);
-		out.SetPixel({ center.x - AmLine8, center.y - AmLine4 }, MapColorsDim);
-		out.SetPixel({ center.x - AmLine8, center.y + AmLine4 }, MapColorsDim);
-		out.SetPixel({ center.x + AmLine8, center.y - AmLine4 }, MapColorsDim);
-		out.SetPixel({ center.x + AmLine8, center.y + AmLine4 }, MapColorsDim);
-		out.SetPixel({ center.x - AmLine16, center.y }, MapColorsDim);
-		out.SetPixel({ center.x + AmLine16, center.y }, MapColorsDim);
-		out.SetPixel({ center.x, center.y - AmLine8 }, MapColorsDim);
-		out.SetPixel({ center.x, center.y + AmLine8 }, MapColorsDim);
-		out.SetPixel({ center.x + AmLine8 - AmLine32, center.y + AmLine4 }, MapColorsDim);
-		out.SetPixel({ center.x - AmLine8 + AmLine32, center.y + AmLine4 }, MapColorsDim);
-		out.SetPixel({ center.x - AmLine16, center.y + AmLine8 }, MapColorsDim);
-		out.SetPixel({ center.x + AmLine16, center.y + AmLine8 }, MapColorsDim);
-		out.SetPixel({ center.x - AmLine8, center.y + AmLine16 - AmLine4 }, MapColorsDim);
-		out.SetPixel({ center.x + AmLine8, center.y + AmLine16 - AmLine4 }, MapColorsDim);
-		out.SetPixel({ center.x, center.y + AmLine16 }, MapColorsDim);
-	}
-
 	if ((automapType & AutomapTypeStairs) != 0) {
-		constexpr int NumStairSteps = 4;
-		const Displacement offset = { -AmLine8, AmLine4 };
-		Point p = { center.x - AmLine8, center.y - AmLine8 - AmLine4 };
-		for (int i = 0; i < NumStairSteps; ++i) {
-			DrawMapLineSE(out, p, AmLine16, MapColorsBright);
-			p += offset;
-		}
+		DrawStairs(out, center);
+		return;
 	}
 
-	bool drawVertical = false;
-	bool drawHorizontal = false;
-	bool drawCaveHorizontal = false;
-	bool drawCaveVertical = false;
+	if ((automapType & AutomapTypeDirt) != 0) {
+		DrawDirt(out, center);
+	}
+
 	switch (automapType & MapTypes) {
 	case AutomapTypeDiamond: // stand-alone column or other unpassable object
 		DrawDiamond(out, { center.x, center.y - AmLine8 }, MapColorsDim);
 		break;
 	case AutomapTypeVertical:
 	case AutomapTypeFenceVertical:
-		drawVertical = true;
+		DrawVertical(out, center, automapType);
 		break;
 	case AutomapTypeHorizontal:
 	case AutomapTypeFenceHorizontal:
-		drawHorizontal = true;
+		DrawHorizontal(out, center, automapType);
 		break;
 	case AutomapTypeCross:
-		drawVertical = true;
-		drawHorizontal = true;
+		DrawVertical(out, center, automapType);
+		DrawHorizontal(out, center, automapType);
 		break;
 	case AutomapTypeCaveHorizontalCross:
-		drawVertical = true;
-		drawCaveHorizontal = true;
+		DrawVertical(out, center, automapType);
+		DrawCaveHorizontal(out, center, automapType);
 		break;
 	case AutomapTypeCaveVerticalCross:
-		drawHorizontal = true;
-		drawCaveVertical = true;
+		DrawHorizontal(out, center, automapType);
+		DrawCaveVertical(out, center, automapType);
 		break;
 	case AutomapTypeCaveHorizontal:
-		drawCaveHorizontal = true;
+		DrawCaveHorizontal(out, center, automapType);
 		break;
 	case AutomapTypeCaveVertical:
-		drawCaveVertical = true;
+		DrawCaveVertical(out, center, automapType);
 		break;
 	case AutomapTypeCaveCross:
-		drawCaveHorizontal = true;
-		drawCaveVertical = true;
+		DrawCaveHorizontal(out, center, automapType);
+		DrawCaveVertical(out, center, automapType);
 		break;
-	}
-
-	if (drawVertical) {                                     // right-facing obstacle
-		if ((automapType & AutomapTypeVerticalDoor) != 0) { // two wall segments with a door in the middle
-			DrawMapVerticalDoor(out, { center.x - AmLine16, center.y - AmLine8 });
-		}
-		if ((automapType & AutomapTypeVerticalGrate) != 0) { // right-facing half-wall
-			DrawMapLineNE(out, { center.x - AmLine32, center.y }, AmLine8, MapColorsDim);
-			automapType = static_cast<AutomapTypes>(automapType | AutomapTypeVerticalArch);
-		}
-		if ((automapType & AutomapTypeVerticalArch) != 0) { // window or passable column
-			DrawDiamond(out, { center.x, center.y - AmLine8 }, MapColorsDim);
-		}
-		if ((automapType & (AutomapTypeVerticalDoor | AutomapTypeVerticalGrate | AutomapTypeVerticalArch)) == 0) {
-			DrawMapLineNE(out, { center.x - AmLine32, center.y }, AmLine16, MapColorsDim);
-		}
-	}
-
-	if (drawHorizontal) { // left-facing obstacle
-		if ((automapType & AutomapTypeHorizontalDoor) != 0) {
-			DrawMapHorizontalDoor(out, { center.x + AmLine16, center.y - AmLine8 });
-		}
-		if ((automapType & AutomapTypeHorizontalGrate) != 0) {
-			DrawMapLineSE(out, { center.x + AmLine16, center.y - AmLine8 }, AmLine8, MapColorsDim);
-			automapType = static_cast<AutomapTypes>(automapType | AutomapTypeHorizontalArch);
-		}
-		if ((automapType & AutomapTypeHorizontalArch) != 0) {
-			DrawDiamond(out, { center.x, center.y - AmLine8 }, MapColorsDim);
-		}
-		if ((automapType & (AutomapTypeHorizontalDoor | AutomapTypeHorizontalGrate | AutomapTypeHorizontalArch)) == 0) {
-			DrawMapLineSE(out, { center.x, center.y - AmLine16 }, AmLine16, MapColorsDim);
-		}
-	}
-
-	// For caves the horizontal/vertical automapType are swapped
-	if (drawCaveHorizontal) {
-		if ((automapType & AutomapTypeVerticalDoor) != 0) {
-			DrawMapHorizontalDoor(out, { center.x - AmLine16, center.y + AmLine8 });
-		} else {
-			DrawMapLineSE(out, { center.x - AmLine32, center.y }, AmLine16, MapColorsDim);
-		}
-	}
-
-	if (drawCaveVertical) {
-		if ((automapType & AutomapTypeHorizontalDoor) != 0) {
-			DrawMapVerticalDoor(out, { center.x + AmLine16, center.y + AmLine8 });
-		} else {
-			DrawMapLineNE(out, { center.x, center.y + AmLine16 }, AmLine16, MapColorsDim);
-		}
 	}
 }
 
