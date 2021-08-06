@@ -3586,6 +3586,28 @@ bool OperateShrineMurphys(int pnum)
 	return true;
 }
 
+bool isDisabledShrineEffect(int shrine)
+{
+	if ((shrine == ShrineFascinating)
+	    || (shrine == ShrineOrnate)
+	    || (shrine == ShrineSacred)) {
+		return true;
+	}
+	return false;
+}
+
+bool OperateDisabledShrine(int pnum)
+{
+	if (deltaload)
+		return false;
+	if (pnum != MyPlayerId)
+		return false;
+
+	InitDiabloMsg(EMSG_SHRINE_DISABLED);
+
+	return true;
+}
+
 void OperateShrine(int pnum, int i, _sfx_id sType)
 {
 	if (dropGoldFlag) {
@@ -3610,7 +3632,13 @@ void OperateShrine(int pnum, int i, _sfx_id sType)
 		Objects[i]._oAnimFlag = 0;
 	}
 
-	switch (Objects[i]._oVar1) {
+	int shrineEffect = Objects[i]._oVar1;
+	if (sgOptions.Gameplay.bDisableCripplingShrines
+	    && isDisabledShrineEffect(shrineEffect)) {
+		shrineEffect = NumberOfShrineTypes;
+	}
+
+	switch (shrineEffect) {
 	case ShrineMysterious:
 		if (!OperateShrineMysterious(pnum))
 			return;
@@ -3742,6 +3770,10 @@ void OperateShrine(int pnum, int i, _sfx_id sType)
 		break;
 	case ShrineMurphys:
 		if (!OperateShrineMurphys(pnum))
+			return;
+		break;
+	case NumberOfShrineTypes: // no actual shrine - effect was disabled
+		if (!OperateDisabledShrine(pnum))
 			return;
 		break;
 	}
@@ -5098,13 +5130,9 @@ bool objectIsDisabled(int i)
 {
 	if (!sgOptions.Gameplay.bDisableCripplingShrines)
 		return false;
-	if ((Objects[i]._otype == OBJ_GOATSHRINE) || (Objects[i]._otype == OBJ_CAULDRON))
-		return true;
 	if ((Objects[i]._otype != OBJ_SHRINEL) && (Objects[i]._otype != OBJ_SHRINER))
 		return false;
-	if ((Objects[i]._oVar1 == ShrineFascinating)
-	    || (Objects[i]._oVar1 == ShrineOrnate)
-	    || (Objects[i]._oVar1 == ShrineSacred))
+	if (isDisabledShrineEffect(Objects[i]._oVar1))
 		return true;
 	return false;
 }
