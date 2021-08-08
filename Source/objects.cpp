@@ -284,6 +284,8 @@ _speech_id StoryText[3][3] = {
 	{ TEXT_BOOK31, TEXT_BOOK32, TEXT_BOOK33 }
 };
 
+int FindValidShrine();
+
 bool RndLocOk(int xp, int yp)
 {
 	if (dMonster[xp][yp] != 0)
@@ -1281,11 +1283,21 @@ void AddArmorStand(int i)
 void AddGoatShrine(int i)
 {
 	Objects[i]._oRndSeed = AdvanceRndSeed();
+	// this looks somewhat strange:
+	// initially a rnd seed was requested and stored. and later restored and used in onOperate
+	// since we now use it right here we have to restore the seed after that to get same result as before
+	Objects[i]._oVar1 = FindValidShrine();
+	SetRndSeed(Objects[i]._oRndSeed);
 }
 
 void AddCauldron(int i)
 {
 	Objects[i]._oRndSeed = AdvanceRndSeed();
+	// this looks somewhat strange:
+	// initially a rnd seed was requested and stored. and later restored and used in onOperate
+	// since we now use it right here we have to restore the seed after that to get same result as before
+	Objects[i]._oVar1 = FindValidShrine();
+	SetRndSeed(Objects[i]._oRndSeed);
 }
 
 void AddMurkyFountain(int i)
@@ -3623,7 +3635,6 @@ void OperateShrine(int pnum, int i, _sfx_id sType)
 		return;
 
 	SetRndSeed(Objects[i]._oRndSeed);
-	Objects[i]._oSelFlag = 0;
 
 	if (!deltaload) {
 		PlaySfxLoc(sType, Objects[i].position);
@@ -3637,7 +3648,10 @@ void OperateShrine(int pnum, int i, _sfx_id sType)
 	int shrineEffect = Objects[i]._oVar1;
 	if (sgOptions.Gameplay.bDisableCripplingShrines
 	    && isDisabledShrineEffect(shrineEffect)) {
-		shrineEffect = NumberOfShrineTypes;
+		OperateDisabledShrine(pnum);
+		return; // return without further actions - so other clients do not get messaged and also do not change the object
+	} else {
+		Objects[i]._oSelFlag = 0;
 	}
 
 	switch (shrineEffect) {
@@ -3772,10 +3786,6 @@ void OperateShrine(int pnum, int i, _sfx_id sType)
 		break;
 	case ShrineMurphys:
 		if (!OperateShrineMurphys(pnum))
-			return;
-		break;
-	case NumberOfShrineTypes: // no actual shrine - effect was disabled
-		if (!OperateDisabledShrine(pnum))
 			return;
 		break;
 	}
@@ -5130,12 +5140,10 @@ int ItemMiscIdIdx(item_misc_id imiscid)
 
 bool objectIsDisabled(int i)
 {
-	if (!sgOptions.Gameplay.bDisableCripplingShrines)
-		return false;
-	if ((Objects[i]._otype != OBJ_SHRINEL) && (Objects[i]._otype != OBJ_SHRINER))
-		return false;
-	if (isDisabledShrineEffect(Objects[i]._oVar1))
-		return true;
+	if (sgOptions.Gameplay.bDisableCripplingShrines
+	    && IsAnyOf(Objects[i]._otype, OBJ_SHRINEL, OBJ_SHRINER, OBJ_GOATSHRINE, OBJ_CAULDRON))
+		return isDisabledShrineEffect(Objects[i]._oVar1);
+
 	return false;
 }
 
