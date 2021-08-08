@@ -3590,7 +3590,9 @@ bool isDisabledShrineEffect(int shrine)
 {
 	if ((shrine == ShrineFascinating)
 	    || (shrine == ShrineOrnate)
-	    || (shrine == ShrineSacred)) {
+	    || (shrine == ShrineSacred)
+	    || (shrine == ShrineMurphys)
+	    || (shrine == ShrineTainted)) {
 		return true;
 	}
 	return false;
