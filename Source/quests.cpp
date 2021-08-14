@@ -68,11 +68,22 @@ QuestDataStruct QuestData[] = {
 
 namespace {
 
-int qtopline;
-int qline;
-quest_id qlist[MAXQUESTS];
-int numqlines;
 int WaterDone;
+
+quest_id qlist[MAXQUESTS]; ///< indices of quests to display in quest log window. `fistfinishedEntry` are active quests the rest are completed
+int qlistCnt;              ///< overall number of qlist entries
+int firstFinishedEntry;    ///< first (nonselectable) finished quest in list
+int selectedEntry;         ///< currently selected quest list item
+
+constexpr Rectangle panelInnerRect { { 32, 40 }, { 280, 290 } }; //inner rect omits the "Quest Log" caption line
+constexpr int lineHeight = 12;
+constexpr int maxSpacing = lineHeight * 2;
+constexpr int defaultTop = 12;
+constexpr int defaultCloseY = panelInnerRect.size.height - lineHeight - 7;
+int topY;
+int lineSpacing;
+int act2finSpacing;
+int closeY;
 
 /**
  * Specifies a delta in X-coordinates from the quest entrance for
@@ -246,16 +257,36 @@ void DrawBlood(int x, int y)
 	}
 }
 
-void PrintQLString(const Surface &out, int x, int line, const char *str)
+int QuestLogMouseToEntry()
+{
+	Rectangle innerArea = panelInnerRect;
+	innerArea.position += Displacement(LeftPanel.position.x, LeftPanel.position.y);
+	if (!innerArea.Contains(MousePosition))
+		return -1;
+	int y = MousePosition.y - innerArea.position.y;
+	for (int i = 0; i < firstFinishedEntry; i++) {
+		if ((y >= topY + i * lineSpacing)
+		    && (y < topY + i * lineSpacing + lineHeight)) {
+			return i;
+		}
+	}
+	if ((y >= closeY)
+	    && (y < closeY + lineHeight)) {
+		return qlistCnt;
+	}
+	return -1;
+}
+
+void PrintQLString(const Surface &out, int x, int y, const char *str, bool marked, bool disabled = false)
 {
 	int width = GetLineWidth(str);
 	int sx = x + std::max((257 - width) / 2, 0);
-	int sy = line * 12 + 44;
-	if (qline == line) {
+	int sy = y + lineHeight; //seems that DrawString y is the text base line -> so add a lines height
+	if (marked) {
 		CelDrawTo(out, GetPanelPosition(UiPanels::Quest, { sx - 20, sy + 1 }), *pSPentSpn2Cels, PentSpn2Spin());
 	}
-	DrawString(out, str, { GetPanelPosition(UiPanels::Quest, { sx, sy }), { 257, 0 } }, UiFlags::ColorSilver);
-	if (qline == line) {
+	DrawString(out, str, { GetPanelPosition(UiPanels::Quest, { sx, sy }), { 257, 0 } }, disabled ? UiFlags::ColorGold : UiFlags::ColorSilver);
+	if (marked) {
 		CelDrawTo(out, GetPanelPosition(UiPanels::Quest, { sx + width + 7, sy + 1 }), *pSPentSpn2Cels, PentSpn2Spin());
 	}
 }
@@ -721,59 +752,107 @@ void ResyncQuests()
 
 void DrawQuestLog(const Surface &out)
 {
-	DrawString(out, _("Quest Log"), { GetPanelPosition(UiPanels::Quest, { 32, 44 }), { 257, 0 } }, UiFlags::AlignCenter);
-	CelDrawTo(out, GetPanelPosition(UiPanels::Quest, { 0, 351 }), *pQLogCel, 1);
-	int line = qtopline;
-	for (int i = 0; i < numqlines; i++) {
-		PrintQLString(out, 32, line, _(QuestData[qlist[i]]._qlstr));
-		line += 2;
+	int l = QuestLogMouseToEntry();
+	if (l >= 0) {
+		selectedEntry = l;
 	}
-	PrintQLString(out, 32, 22, _("Close Quest Log"));
+	const auto x = panelInnerRect.position.x;
+	CelDrawTo(out, GetPanelPosition(UiPanels::Quest, { 0, 351 }), *pQLogCel, 1);
+	PrintQLString(out, x, panelInnerRect.position.y - lineHeight, _("Quest Log"), false, true);
+	int y = panelInnerRect.position.y + topY;
+	for (int i = 0; i < qlistCnt; i++) {
+		if (i == firstFinishedEntry) {
+			y += act2finSpacing;
+		}
+		PrintQLString(out, x, y, _(QuestData[qlist[i]]._qlstr), i == selectedEntry, i >= firstFinishedEntry);
+		y += lineSpacing;
+	}
+	PrintQLString(out, x, panelInnerRect.position.y + closeY, _("Close Quest Log"), selectedEntry == qlistCnt);
 }
 
 void StartQuestlog()
 {
-	numqlines = 0;
+
+	auto sortQuestIdx = [](int a, int b) {
+		return strcmp(QuestData[a]._qlstr, QuestData[b]._qlstr) < 0;
+	};
+
+	qlistCnt = 0;
 	for (auto &quest : Quests) {
 		if (quest._qactive == QUEST_ACTIVE && quest._qlog) {
-			qlist[numqlines] = quest._qidx;
-			numqlines++;
+			qlist[qlistCnt] = quest._qidx;
+			qlistCnt++;
 		}
 	}
-	if (numqlines > 5) {
-		qtopline = 5 - (numqlines / 2);
-	} else {
-		qtopline = 8;
+	firstFinishedEntry = qlistCnt;
+	for (auto &quest : Quests) {
+		if (quest._qactive == QUEST_DONE || quest._qactive == QUEST_HIVE_DONE) {
+			qlist[qlistCnt] = quest._qidx;
+			qlistCnt++;
+		}
 	}
-	qline = 22;
-	if (numqlines != 0)
-		qline = qtopline;
+
+	std::sort(&qlist[0], &qlist[firstFinishedEntry], sortQuestIdx);
+	std::sort(&qlist[firstFinishedEntry], &qlist[qlistCnt], sortQuestIdx);
+
+	closeY = defaultCloseY;
+	topY = defaultTop;
+	act2finSpacing = lineHeight / 2;
+
+	int overallMinHeight = qlistCnt * lineHeight + act2finSpacing;
+	int space = (closeY - topY - lineHeight);
+
+	if (qlistCnt > 0) {
+		if (qlistCnt < 21) {
+			int additionalSpace = (space - overallMinHeight);
+			int addLineSpacing = additionalSpace / qlistCnt;
+			int addSepSpacint = additionalSpace - (addLineSpacing * qlistCnt);
+			lineSpacing = std::min(maxSpacing, lineHeight + addLineSpacing);
+			act2finSpacing += addSepSpacint;
+
+			int overallHeight = qlistCnt * lineSpacing + act2finSpacing;
+			topY += (space - overallHeight) / 3;
+		} else {
+			lineSpacing = lineHeight - 1;
+			act2finSpacing = 4;
+			if (qlistCnt == 23) {
+				topY /= 2;
+			} else if (qlistCnt == 24) {
+				topY /= 4;
+				act2finSpacing /= 2;
+			}
+		}
+	}
+
+	selectedEntry = (firstFinishedEntry == 0) ? qlistCnt : 0;
 	QuestLogIsOpen = true;
 }
 
 void QuestlogUp()
 {
-	if (numqlines != 0) {
-		if (qline == qtopline) {
-			qline = 22;
-		} else if (qline == 22) {
-			qline = qtopline + 2 * numqlines - 2;
+	if (qlistCnt != 0) {
+		if (selectedEntry == 0 || (firstFinishedEntry == 0)) {
+			selectedEntry = qlistCnt;
+		} else if (selectedEntry >= firstFinishedEntry) {
+			selectedEntry = firstFinishedEntry - 1;
 		} else {
-			qline -= 2;
+			selectedEntry--;
 		}
+
 		PlaySFX(IS_TITLEMOV);
 	}
 }
 
 void QuestlogDown()
 {
-	if (numqlines != 0) {
-		if (qline == 22) {
-			qline = qtopline;
-		} else if (qline == qtopline + 2 * numqlines - 2) {
-			qline = 22;
+	if (qlistCnt != 0) {
+		if (selectedEntry == qlistCnt) {
+			selectedEntry = 0;
 		} else {
-			qline += 2;
+			selectedEntry++;
+		}
+		if (selectedEntry >= firstFinishedEntry) {
+			selectedEntry = qlistCnt;
 		}
 		PlaySFX(IS_TITLEMOV);
 	}
@@ -782,25 +861,15 @@ void QuestlogDown()
 void QuestlogEnter()
 {
 	PlaySFX(IS_TITLSLCT);
-	if (numqlines != 0 && qline != 22)
-		InitQTextMsg(Quests[qlist[(qline - qtopline) / 2]]._qmsg);
+	if (qlistCnt != 0 && selectedEntry < firstFinishedEntry)
+		InitQTextMsg(Quests[qlist[selectedEntry]]._qmsg);
 	QuestLogIsOpen = false;
 }
 
 void QuestlogESC()
 {
-	Rectangle innerArea = { { LeftPanel.position.x + 32, LeftPanel.position.y + 32 }, { 288 - 32, 308 - 32 } };
-	int y = (MousePosition.y - LeftPanel.position.y - 32) / 12;
-	if (!innerArea.Contains(MousePosition))
-		return;
-	for (int i = 0; i < numqlines; i++) {
-		if (y == qtopline + 2 * i) {
-			qline = y;
-			QuestlogEnter();
-		}
-	}
-	if (y == 22) {
-		qline = 22;
+	int l = QuestLogMouseToEntry();
+	if (l != -1) {
 		QuestlogEnter();
 	}
 }
