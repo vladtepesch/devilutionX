@@ -369,6 +369,7 @@ set(libdevilutionx_SRCS
   Source/plrmsg.cpp
   Source/portal.cpp
   Source/quests.cpp
+  Source/questbook.cpp
   Source/restrict.cpp
   Source/scrollrt.cpp
   Source/setmaps.cpp
