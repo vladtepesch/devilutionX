@@ -265,7 +265,11 @@ void InitGirl(TownerStruct &towner, const TownerInit &initData)
 	towner._tAnimWidth = 96;
 	towner.animOrder = nullptr;
 	towner.animOrderSize = 0;
-	LoadTownerAnimations(towner, "Towners\\Girl\\Girlw1.CEL", 20, initData.dir, 6);
+	if (Quests[Q_GIRL]._qactive == QUEST_DONE) {
+		LoadTownerAnimations(towner, "Towners\\Girl\\Girls1.CEL", 20, DIR_S, 6);
+	} else {
+		LoadTownerAnimations(towner, "Towners\\Girl\\Girlw1.CEL", 20, initData.dir, 6);
+	}
 	towner.name = "Celia";
 }
 
@@ -818,7 +822,7 @@ bool IsTownerPresent(_talker_id npc)
 	case TOWN_COWFARM:
 		return gbIsHellfire && sgGameInitInfo.bCowQuest != 0;
 	case TOWN_GIRL:
-		return gbIsHellfire && sgGameInitInfo.bTheoQuest != 0 && Players->_pLvlVisited[17] && Quests[Q_GIRL]._qactive != QUEST_DONE;
+		return gbIsHellfire && sgGameInitInfo.bTheoQuest != 0 && Players->_pLvlVisited[17];
 	default:
 		return true;
 	}
